@@ -1,0 +1,160 @@
+{
+  "scenarios": [
+    {
+      "scenario_id": "rate-limiter",
+      "title": "Distributed API Rate Limiter",
+      "domain": "Cloud Infrastructure & Security",
+      "problem_statement": "Design a high-throughput, low-latency distributed rate limiter service to protect our core API gateway from traffic spikes, denial-of-service attempts, and abusive tenants across multi-region clusters.",
+      "functional_requirements": [
+        "Limit requests per client IP, user ID, or API key within configurable time windows (e.g. 100 req/minute).",
+        "Return HTTP 429 Too Many Requests with informative retry headers when limits are breached.",
+        "Support multi-tiered rate limiting rules (tiered subscriptions, burst capacity allowances)."
+      ],
+      "non_functional_requirements": [
+        "Ultra-low latency overhead (< 5ms p99 at API gateway).",
+        "High availability and fault tolerance (soft fail-open if rate limiter cluster fails).",
+        "Horizontal scalability supporting millions of active concurrent tokens across multiple regions."
+      ],
+      "suggested_questions": {
+        "requirements": [
+          "What criteria will you use to identify and segment clients (IP, API token, user ID)?",
+          "What should happen when the rate limiter is unavailable or slow—fail open or fail closed?"
+        ],
+        "high_level_design": [
+          "Where in the request pipeline would you place the rate limiter—at the API Gateway, sidecar, or reverse proxy?",
+          "What data store and algorithmic pattern (Token Bucket, Leaky Bucket, Sliding Window Log, Sliding Window Counter) would you pick?"
+        ],
+        "deep_dive": [
+          "How do you handle race conditions when concurrent requests from the same user hit different gateway instances simultaneously?",
+          "How would you structure your Redis or in-memory key format and expiration policies to minimize memory footprint?"
+        ],
+        "bottlenecks_tradeoffs": [
+          "How does your system synchronize state across multiple geographical data centers without incurring cross-region latency?",
+          "What monitoring metrics and alert thresholds would you instrument to detect throttling anomalies?"
+        ]
+      },
+      "rubric_guidelines": {
+        "requirements": {
+          "communication": "Clarifies scale (QPS, concurrent users), failure modes (fail-open vs fail-closed), and tenant granularity.",
+          "edge_cases": "Identifies distributed clock drift, NAT IP collision, and unauthenticated traffic."
+        },
+        "high_level_design": {
+          "architecture": "Positions rate limiter at API Gateway or reverse proxy, justifies caching layer (Redis / Memcached).",
+          "data_modeling": "Selects appropriate algorithm (e.g. Token Bucket vs Sliding Window Counter) with clear memory usage analysis."
+        },
+        "deep_dive": {
+          "scalability": "Resolves distributed concurrency using Lua scripts, Redis pipeline, or local sliding window caches with background sync.",
+          "architecture": "Defines atomic increment operations and compact byte-level key structures."
+        },
+        "bottlenecks_tradeoffs": {
+          "scalability": "Evaluates eventual consistency vs synchronous replication across data centers.",
+          "edge_cases": "Explains grace periods, client retry exponential backoff (Jitter), and circuit breaking."
+        }
+      }
+    },
+    {
+      "scenario_id": "url-shortener",
+      "title": "Scalable URL Shortener (TinyURL)",
+      "domain": "Web Platforms & Distributed Storage",
+      "problem_statement": "Design a globally distributed URL shortening service capable of creating compact aliases for long web URLs, redirecting millions of redirect requests with single-digit millisecond latency, and tracking analytics.",
+      "functional_requirements": [
+        "Given a long URL, generate a unique 7-character short URL alias.",
+        "Given a short alias, redirect the user via HTTP 301/302 to the original destination with minimal latency.",
+        "Support custom short links and optional TTL link expiration."
+      ],
+      "non_functional_requirements": [
+        "Massive read-to-write skew (e.g. 100:1 read to write ratio).",
+        "Sub-10ms redirection latency globally.",
+        "High availability (99.99%) and durable persistent storage for billions of URL records."
+      ],
+      "suggested_questions": {
+        "requirements": [
+          "What is the expected read-to-write ratio and monthly URL creation volume?",
+          "Should redirections use HTTP 301 (Permanent) or HTTP 302 (Temporary), and what are the trade-offs for analytics?"
+        ],
+        "high_level_design": [
+          "How do you generate unique short aliases (Base62 encoding of counter vs MD5/SHA256 hashing vs Token Generator Service)?",
+          "What database technology (NoSQL key-value vs Relational) best accommodates high write throughput and simple key lookups?"
+        ],
+        "deep_dive": [
+          "How would you architect the Key Generation Service (KGS) to prevent duplicate keys across distributed worker nodes?",
+          "How do you leverage caching (Redis, CDN) to handle popular viral links without overwhelming the database?"
+        ],
+        "bottlenecks_tradeoffs": [
+          "How do you purge or archive expired URLs without causing table locking or database latency spikes?",
+          "How would you prevent single points of failure in the Key Generation Service?"
+        ]
+      },
+      "rubric_guidelines": {
+        "requirements": {
+          "communication": "Proactively probes traffic volume, URL character length, alphabet (Base62), and TTL expectations.",
+          "edge_cases": "Considers link hijacking, malicious URL spam, and duplicate submissions of the same long URL."
+        },
+        "high_level_design": {
+          "architecture": "Chooses between 301 (browser caching saves server load) and 302 (server-side analytics tracking).",
+          "data_modeling": "Designs lightweight schema (short_key, original_url, user_id, created_at, expires_at) with indexed short_key."
+        },
+        "deep_dive": {
+          "scalability": "Designs pre-generated key tokens (KGS) or SnowFlake ID generator; instruments multi-layer caching (LRU cache, Redis).",
+          "architecture": "Calculates storage requirements accurately for 5-10 year operational horizon."
+        },
+        "bottlenecks_tradeoffs": {
+          "scalability": "Explains database partitioning/sharding strategies (hash-based sharding on short_key).",
+          "edge_cases": "Designs lazy-deletion TTL reaper mechanisms to prevent database degradation."
+        }
+      }
+    },
+    {
+      "scenario_id": "notification-service",
+      "title": "Real-Time Multi-Channel Notification Platform",
+      "domain": "Event-Driven & Messaging Systems",
+      "problem_statement": "Design an enterprise-scale notification platform capable of ingesting, prioritizing, and dispatching billions of push notifications, SMS texts, and transactional emails with rate throttling and user preference controls.",
+      "functional_requirements": [
+        "Ingest event notifications from multiple backend microservices via asynchronous API / message queue.",
+        "Dispatch notifications across three distinct channels: Mobile Push (APNs/FCM), SMS (Twilio), and Email (SendGrid).",
+        "Enforce user opt-out preferences, quiet hours, and frequency deduplication."
+      ],
+      "non_functional_requirements": [
+        "High throughput (100,000+ notifications per second during peak breaking news / flash sales).",
+        "At-least-once delivery guarantee with idempotency to prevent duplicate messages.",
+        "Strict latency tiers (critical OTP security alerts in < 2s; marketing updates in < 15m)."
+      ],
+      "suggested_questions": {
+        "requirements": [
+          "What are the latency expectations for transactional OTPs versus bulk marketing notifications?",
+          "How do you handle third-party provider rate limits or service outages?"
+        ],
+        "high_level_design": [
+          "How do you decouple ingestion from delivery using distributed message queues (Kafka, RabbitMQ, SQS)?",
+          "How is user preference and device token state queried and cached without creating an ingestion bottleneck?"
+        ],
+        "deep_dive": [
+          "How do you guarantee idempotency so a user is not double-billed or sent duplicate SMS notifications on retry?",
+          "How would you implement priority queueing so OTP codes bypass queued promotional email batches?"
+        ],
+        "bottlenecks_tradeoffs": [
+          "What happens when third-party gateways (e.g. APNs or Twilio) throttle requests or experience an outage?",
+          "How do you handle dead-letter queues (DLQ) and replay mechanisms for transient downstream failures?"
+        ]
+      },
+      "rubric_guidelines": {
+        "requirements": {
+          "communication": "Distinguishes high-priority transactional alerts from bulk asynchronous campaigns.",
+          "edge_cases": "Identifies invalid device tokens, provider-side throttling, and time-zone quiet hour constraints."
+        },
+        "high_level_design": {
+          "architecture": "Utilizes partitioned message broker (Kafka/RabbitMQ) with dedicated consumer worker pools per channel.",
+          "data_modeling": "Models notification templates, recipient preference state, and delivery log schemas with idempotency keys."
+        },
+        "deep_dive": {
+          "scalability": "Implements separate priority queues or dedicated topic partitions for low-latency alerts.",
+          "architecture": "Employs distributed idempotency cache (Redis SETNX on message_id) to eliminate duplicate sends."
+        },
+        "bottlenecks_tradeoffs": {
+          "scalability": "Incorporates circuit breakers and backoff retry queues for failing downstream providers.",
+          "edge_cases": "Designs Dead-Letter Queues (DLQ) with alert monitoring and administrative replay capabilities."
+        }
+      }
+    }
+  ]
+}
